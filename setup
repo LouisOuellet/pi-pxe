@@ -294,7 +294,7 @@ function Install(){
   echo "enable-tftp" >> /etc/dnsmasq.conf
   echo "tftp-root=/mnt/data/netboot" >> /etc/dnsmasq.conf
   # Set boot file based on the client architecture
-  echo 'pxe-service=x86PC,"PXELINUX (BIOS)",bios/pxelinux' >> /etc/dnsmasq.conf
+  echo 'pxe-service=x86PC,"PXELINUX (BIOS)",bios/pxelinux.0' >> /etc/dnsmasq.conf
   echo 'pxe-service=x86-64_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
   echo 'pxe-service=ARM32_EFI,"PXELINUX (EFI)",efi32/syslinux.efi' >> /etc/dnsmasq.conf
   echo 'pxe-service=ARM64_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
