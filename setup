@@ -1,0 +1,345 @@
+#!/bin/bash
+#==============================================================================
+#TITLE:            RDP
+#DESCRIPTION:      This script makes it easy to connect to older iRDP 6 Controllers and provides a ThinClient experience
+#AUTHOR:           Louis Ouellet
+#DATE:             2020-09-30
+#VERSION:          1.1-0
+
+#==============================================================================
+# CUSTOM SETTINGS
+#==============================================================================
+
+# Initialize Timer
+SECOND=0
+
+# Script name
+scriptname=$(echo $0 | sed -e 's@.*/@@')
+
+# Source Directory
+sourceDir=$(dirname $(readlink -f $0))
+
+# dbg Switch
+DEBUG=false
+
+# Log Directory
+LOGDIR=${sourceDir}/log/
+if [ ! -d $LOGDIR ];then
+    mkdir -p $LOGDIR
+fi
+
+# Log File
+LgFile="${LOGDIR}$(date +%s%N).log"
+
+# IPv4 ETH0
+IPv4_IP=$(ip -4 -j -p addr show eth0 | jq '.[0].addr_info[0].local' | sed -e 's/"//g')
+IPv4_Gateway=$(ip route list | grep default | awk '{ print $3 }')
+IPv4_Base=$(echo $IPv4_IP | cut -d"." -f1-3)
+IPv4_Prefix=$(ip -4 -j -p addr show eth0 | jq '.[0].addr_info[0].prefixlen' | sed -e 's/"//g')
+
+# Script Personalisation
+Title=""
+help_options="
+-v                     => Enable dbg Mode
+                          Input commands sent are stored in ${LOGDIR}
+"
+help_functions="
+"
+#==============================================================================
+# BASH SETUP
+#==============================================================================
+
+# Set Bash
+set -o pipefail
+set -e
+
+# SETS LOCALE
+# Updated to en_US to support
+#export LC_ALL=en_US.UTF-8 > /dev/null 2>&1 || export LC_ALL=en_GB.UTF-8 > /dev/null 2>&1 || export LC_ALL=C.UTF-8 > /dev/null 2>&1
+
+#==============================================================================
+# FORMATTING
+#==============================================================================
+
+# COLORS
+blackText=$(tput setaf 0)   # Black
+redText=$(tput setaf 1)     # Red
+greenText=$(tput setaf 2)   # Green
+yellowText=$(tput setaf 3)  # Yellow
+blueText=$(tput setaf 4)    # Blue
+magentaText=$(tput setaf 5) # Magenta
+cyanText=$(tput setaf 6)    # Cyan
+whiteText=$(tput setaf 7)   # White
+resetText=$(tput sgr0)      # Reset to default color
+
+# STYLES
+boldText=$(tput bold)
+blinkingText=$(tput blink)
+dimText=$(tput dim)
+
+#==============================================================================
+# Elements
+#==============================================================================
+
+# CHECK BOXES
+checkBoxGood="[${greenText}✓${resetText}]"       # Good
+checkBoxBad="[${redText}✗${resetText}]"          # Bad
+checkBoxQuestion="[${magentaText}?${resetText}]"  # Question / ?
+checkBoxInfo="[${cyanText}i${resetText}]"      # Info / i
+checkBoxOutput="[${yellowText}!${resetText}]"      # Output / !
+
+# STATUS
+StatusOk="${checkBoxGood} System is healthy."
+StatusUpdate="${checkBoxInfo} Updates are available."
+StatusHot="${checkBoxBad} System is hot!"
+StatusUnknown="${checkBoxQuestion} Status unknown!"
+
+# Current Date & Time
+PDATE(){
+	printf "[$(date '+%Y-%m-%d %H:%M:%S')]"
+}
+
+# Log Types
+INFO=$checkBoxInfo
+OUTPUT=$checkBoxOutput
+SUCCESS=$checkBoxGood
+ERROR=$checkBoxBad
+
+# Log Actions
+CHECK="[CHECK]"
+START="[START]"
+RUN="[ RUN ]"
+EMPT="[     ]"
+OUT="[ OUT ]"
+VAR="[ VAR ]"
+#==============================================================================
+# Logger
+#==============================================================================
+
+function help(){
+  if [ $DEBUG = "true" ]; then
+    echo "Help" | dbg i s
+  fi
+  echo -e "
+Usage: $scriptname [options]
+
+Options:
+$help_options
+"
+}
+
+function fatal(){
+  printf "FATAL ERROR: $1\n"
+  help
+  exit 0
+}
+
+function dbg(){
+  if [ "$1" != "" ] && [ "$2" != "" ]; then
+    case "$1" in
+      info|i)
+        TYPE=$INFO
+        ;;
+      success|s)
+        TYPE=$SUCCESS
+        ;;
+      error|e)
+        TYPE=$ERROR
+        ;;
+      output|o)
+        TYPE=$OUTPUT
+        ;;
+      question|q)
+        TYPE=$checkBoxQuestion
+        ;;
+    esac
+    case "$2" in
+      check|c|test|t)
+        ACTION=$CHECK
+        ;;
+      start|s)
+        ACTION=$START
+        ;;
+      run|r)
+        ACTION=$RUN
+        ;;
+      empty|e)
+        ACTION=$EMPT
+        ;;
+      output|o)
+        ACTION=$OUT
+        ;;
+      variable|var|v)
+        ACTION=$VAR
+        ;;
+    esac
+    while read DCMD; do
+      LogFile=$LgFile
+      if [ "$3" != "" ]; then
+        LogFile=$3
+      fi
+      if [ $DEBUG = "true" ]; then
+        printf "${TYPE}$(PDATE)${ACTION} ${DCMD}\n" | tee -a $LogFile
+      else
+        printf "${TYPE}$(PDATE)${ACTION} ${DCMD}\n"
+      fi
+    done
+  else
+    fatal "Missing Argument(s)"
+  fi
+}
+
+function exec(){
+  if [ "$1" != "" ]; then
+    if [ $DEBUG = "true" ]; then
+      echo "exec $1" | dbg i s
+      if eval $1 2>&1 | dbg o o;then
+        echo "$1" | dbg s r
+      else
+        echo "$1" | dbg e r
+      fi
+    else
+      eval $1
+    fi
+  else
+    fatal "Missing Argument(s)"
+  fi
+}
+
+function pkg(){
+  if [ "$1" != "" ]; then
+    if [ $DEBUG = "true" ]; then
+      echo "pkg $1" | dbg i s
+    fi
+    if [ $(dpkg-query -W -f='${Status}' $1 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+      exec "sudo apt-get update"
+      exec "sudo apt-get install $1 -y"
+    fi
+  else
+    fatal "Missing Argument(s)"
+  fi
+}
+
+function Install(){
+  # GUI
+  pkg zenity
+  pkg yad
+  # Diagnostics Utilities
+  pkg nmap
+  pkg dnsutils
+  pkg fping
+  pkg net-tools
+  pkg jq
+  # PXE Server
+  pkg ufw
+  pkg dnsmasq
+  pkg pxelinux
+  pkg syslinux-efi
+
+  # Create PXE Environment
+  exec "mkdir -p /mnt/data/netboot/{bios,efi64}"
+  exec "cp /usr/lib/syslinux/modules/bios/{ldlinux,vesamenu,libcom32,libutil}.c32 /mnt/data/netboot/bios"
+  exec "cp /usr/lib/PXELINUX/pxelinux.0 /mnt/data/netboot/bios"
+  exec "cp /usr/lib/syslinux/modules/efi64/ldlinux.e64 /mnt/data/netboot/efi64"
+  exec "cp /usr/lib/syslinux/modules/efi64/{vesamenu,libcom32,libutil}.c32 /mnt/data/netboot/efi64"
+  exec "cp /usr/lib/SYSLINUX.EFI/efi64/syslinux.efi /mnt/data/netboot/efi64"
+  exec "mkdir -p /mnt/data/netboot/boot"
+  exec "mkdir -p /mnt/data/isos/"
+
+  # Create Environment for Debian 11
+  # /mnt/data/netboot/boot/amd64/debian/11/isolinux/menu.cfg for configurations
+  exec "mkdir -p /mnt/data/netboot/boot/amd64/debian/11"
+  exec "mount -o loop -t iso9660 /mnt/data/isos/debian-11.0.0-amd64-netinst.iso /media"
+  exec "rsync -av /media/ /mnt/data/netboot/boot/amd64/debian/11"
+  exec "umount /media"
+
+  # Create Boot Menu
+  exec "mkdir -p /mnt/data/netboot/pxelinux.cfg"
+  echo "MENU TITLE  PXE Boot Menu
+        DEFAULT     vesamenu.c32
+          LABEL local
+            MENU LABEL Boot from local drive
+            LOCALBOOT 0xffff
+          MENU BEGIN amd64
+          MENU TITLE amd64
+            MENU BEGIN Debian
+            MENU TITLE Debian
+              LABEL installgui
+                MENU LABEL ^Graphical install
+                KERNEL ::boot/amd64/debian/10/install.amd/vmlinuz
+                APPEND vga=788 initrd=::boot/amd64/debian/11/install.amd/gtk/initrd.gz --- quiet
+              LABEL install
+                MENU LABEL ^Install
+                KERNEL ::boot/amd64/debian/10/install.amd/vmlinuz
+                APPEND vga=788 initrd=::boot/amd64/debian/11/install.amd/initrd.gz --- quiet
+            MENU END
+          MENU END
+  " > /mnt/data/netboot/pxelinux.cfg/default
+  cd /mnt/data/netboot
+  exec "ln -rs pxelinux.cfg bios && ln -rs pxelinux.cfg efi64"
+
+  # Setup dnsmasq
+  # Disable DNS Service
+  echo "port=0" >> /etc/dnsmasq.conf
+  # Setup DHCP By Interface Name
+  echo "interface=eth0" >> /etc/dnsmasq.conf
+  # Setup DHCP Proxy for Network with DHCP
+  echo "dhcp-range=${IPv4_Base}.0,proxy" >> /etc/dnsmasq.conf
+  # Enable TFTP Server
+  echo "enable-tftp" >> /etc/dnsmasq.conf
+  echo "tftp-root=/mnt/data/netboot" >> /etc/dnsmasq.conf
+  # Set boot file based on the client architecture
+  echo 'pxe-service=x86PC,"PXELINUX (BIOS)",bios/pxelinux' >> /etc/dnsmasq.conf
+  echo 'pxe-service=x86-64_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
+  echo 'pxe-service=ARM32_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
+  echo 'pxe-service=ARM64_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
+  # Setup Logging
+  echo "log-queries" >> /etc/dnsmasq.conf
+  echo "log-facility=/var/log/dnsmasq.log" >> /etc/dnsmasq.conf
+  # Restart dnsmasq
+  exec "systemctl restart dnsmasq"
+
+  # Setup Firewall
+  exec "ufw allow 67/udp"
+  exec "ufw allow 69/udp"
+  exec "ufw allow 4011/udp"
+}
+
+#==============================================================================
+# RUN OPTIONS & FUNCTIONS
+#==============================================================================
+
+if [ "$0" != "./${scriptname}" ] && [ "$0" != "/usr/bin/${scriptname}" ];then
+    fatal "Script must be run from source folder or as binary."
+fi
+
+while getopts ":v" option
+	do
+	case "${option}"
+		in
+			v) DEBUG=true;;
+			\? )
+				echo "Invalid option: $OPTARG" 1>&2
+          help
+          exit 0
+				;;
+			: )
+				echo "Invalid option: $OPTARG requires an argument" 1>&2
+          help
+          exit 0
+				;;
+	esac
+done
+shift $((OPTIND -1))
+
+#==============================================================================
+# RUN SCRIPT
+#==============================================================================
+
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root\n"
+  exit 1
+else
+  Install
+fi
+exit 0
