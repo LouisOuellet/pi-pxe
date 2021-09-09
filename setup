@@ -237,9 +237,12 @@ function Install(){
   pkg syslinux-efi
 
   # Create PXE Environment
-  exec "mkdir -p /mnt/data/netboot/{bios,efi64}"
+  exec "mkdir -p /mnt/data/netboot/{bios,efi64,efi32}"
   exec "cp /usr/lib/syslinux/modules/bios/{ldlinux,vesamenu,libcom32,libutil}.c32 /mnt/data/netboot/bios"
   exec "cp /usr/lib/PXELINUX/pxelinux.0 /mnt/data/netboot/bios"
+  exec "cp /usr/lib/syslinux/modules/efi32/ldlinux.e32 /mnt/data/netboot/efi32"
+  exec "cp /usr/lib/syslinux/modules/efi32/{vesamenu,libcom32,libutil}.c32 /mnt/data/netboot/efi32"
+  exec "cp /usr/lib/SYSLINUX.EFI/efi32/syslinux.efi /mnt/data/netboot/efi32"
   exec "cp /usr/lib/syslinux/modules/efi64/ldlinux.e64 /mnt/data/netboot/efi64"
   exec "cp /usr/lib/syslinux/modules/efi64/{vesamenu,libcom32,libutil}.c32 /mnt/data/netboot/efi64"
   exec "cp /usr/lib/SYSLINUX.EFI/efi64/syslinux.efi /mnt/data/netboot/efi64"
@@ -248,6 +251,8 @@ function Install(){
 
   # Create Environment for Debian 11
   # /mnt/data/netboot/boot/amd64/debian/11/isolinux/menu.cfg for configurations
+  cd /mnt/data/isos/
+  exec "wget https://saimei.ftp.acc.umu.se/debian-cd/current/amd64/iso-cd/debian-11.0.0-amd64-netinst.iso"
   exec "mkdir -p /mnt/data/netboot/boot/amd64/debian/11"
   exec "mount -o loop -t iso9660 /mnt/data/isos/debian-11.0.0-amd64-netinst.iso /media"
   exec "rsync -av /media/ /mnt/data/netboot/boot/amd64/debian/11"
@@ -276,7 +281,7 @@ function Install(){
           MENU END
   " > /mnt/data/netboot/pxelinux.cfg/default
   cd /mnt/data/netboot
-  exec "ln -rs pxelinux.cfg bios && ln -rs pxelinux.cfg efi64"
+  exec "ln -rs pxelinux.cfg bios && ln -rs pxelinux.cfg efi64 && ln -rs pxelinux.cfg efi32"
 
   # Setup dnsmasq
   # Disable DNS Service
@@ -291,7 +296,7 @@ function Install(){
   # Set boot file based on the client architecture
   echo 'pxe-service=x86PC,"PXELINUX (BIOS)",bios/pxelinux' >> /etc/dnsmasq.conf
   echo 'pxe-service=x86-64_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
-  echo 'pxe-service=ARM32_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
+  echo 'pxe-service=ARM32_EFI,"PXELINUX (EFI)",efi32/syslinux.efi' >> /etc/dnsmasq.conf
   echo 'pxe-service=ARM64_EFI,"PXELINUX (EFI)",efi64/syslinux.efi' >> /etc/dnsmasq.conf
   # Setup Logging
   echo "log-queries" >> /etc/dnsmasq.conf
@@ -308,10 +313,6 @@ function Install(){
 #==============================================================================
 # RUN OPTIONS & FUNCTIONS
 #==============================================================================
-
-if [ "$0" != "./${scriptname}" ] && [ "$0" != "/usr/bin/${scriptname}" ];then
-    fatal "Script must be run from source folder or as binary."
-fi
 
 while getopts ":v" option
 	do
@@ -338,7 +339,6 @@ shift $((OPTIND -1))
 
 if [[ $EUID -ne 0 ]]; then
   echo "This script must be run as root\n"
-  exit 1
 else
   Install
 fi
