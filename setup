@@ -273,6 +273,9 @@ function Install(){
             MENU BEGIN Ubuntu 20.04
             MENU TITLE Ubuntu 20.04
             MENU END
+            MENU BEGIN Debian 11
+            MENU TITLE Debian 11
+            MENU END
           MENU END
           MENU BEGIN amd64
           MENU TITLE amd64
@@ -296,9 +299,23 @@ function Install(){
             MENU BEGIN Ubuntu 20.04
             MENU TITLE Ubuntu 20.04
             MENU END
+            MENU BEGIN Debian 11
+            MENU TITLE Debian 11
+            MENU END
           MENU END
         MENU END
   " > /mnt/data/netboot/pxelinux.cfg/default
+  for octet in {0,10,20,30,40,50,60,70,80,90,100,110,120,130,140,150};do
+    hex=$(printf "%x\n" ${octet})
+    cat /mnt/data/netboot/pxelinux.cfg/default > /mnt/data/netboot/pxelinux.cfg/192.168.${octet}
+    if [ "${octet}" == "0" ];then
+      hex="00"
+    fi
+    if [ "${octet}" == "10" ];then
+      hex="0a"
+    fi
+    ln -sr /mnt/data/netboot/pxelinux.cfg/192.168.${octet} /mnt/data/netboot/pxelinux.cfg/C0A8${hex^^}
+  done
   cd /mnt/data/netboot
   exec "ln -rs pxelinux.cfg bios && ln -rs pxelinux.cfg efi64 && ln -rs pxelinux.cfg efi32"
 
