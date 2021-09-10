@@ -252,11 +252,20 @@ function Install(){
   # Create Environment for Debian 11
   # /mnt/data/netboot/boot/amd64/debian/11/isolinux/menu.cfg for configurations
   cd /mnt/data/isos/
-  exec "wget https://saimei.ftp.acc.umu.se/debian-cd/current/amd64/iso-cd/debian-11.0.0-amd64-netinst.iso"
-  exec "mkdir -p /mnt/data/netboot/boot/amd64/debian/11"
-  exec "mount -o loop -t iso9660 /mnt/data/isos/debian-11.0.0-amd64-netinst.iso /media"
-  exec "rsync -av /media/ /mnt/data/netboot/boot/amd64/debian/11"
-  exec "umount /media"
+  for arch in {i386,amd64,armhf};do
+    mount -o loop -t iso9660 /mnt/data/isos/debian-11.0.0-${arch}-netinst.iso /media
+    echo "========================================================================================================"
+    echo "Achitecture: ${arch}"
+    echo "--------------------------------------------------------------------------------------------------------"
+    cat /media/isolinux/menu.cfg
+    echo "========================================================================================================"
+    umount /media
+    exec "wget https://cdimage.debian.org/debian-cd/current/${arch}/iso-cd/debian-11.0.0-${arch}-netinst.iso"
+    exec "mkdir -p /mnt/data/netboot/boot/${arch}/debian/11"
+    exec "mount -o loop -t iso9660 /mnt/data/isos/debian-11.0.0-${arch}-netinst.iso /media"
+    exec "rsync -av /media/ /mnt/data/netboot/boot/${arch}/debian/11"
+    exec "umount /media"
+  done
 
   # Create Boot Menu
   exec "mkdir -p /mnt/data/netboot/pxelinux.cfg"
@@ -268,13 +277,21 @@ function Install(){
           LOCALBOOT 0
         MENU BEGIN Boot from network
         MENU TITLE Boot from network
-          MENU BEGIN x86
-          MENU TITLE x86
+          MENU BEGIN i386
+          MENU TITLE i386
             MENU BEGIN Ubuntu 20.04
             MENU TITLE Ubuntu 20.04
             MENU END
             MENU BEGIN Debian 11
             MENU TITLE Debian 11
+              LABEL installgui
+                MENU LABEL Graphical install
+                KERNEL ::boot/i386/debian/10/install.386/vmlinuz
+                APPEND vga=788 initrd=::boot/i386/debian/11/install.386/gtk/initrd.gz --- quiet
+              LABEL install
+                MENU LABEL Install
+                KERNEL ::boot/i386/debian/10/install.386/vmlinuz
+                APPEND vga=788 initrd=::boot/i386/debian/11/install.386/initrd.gz --- quiet
             MENU END
           MENU END
           MENU BEGIN amd64
@@ -294,13 +311,21 @@ function Install(){
                 APPEND vga=788 initrd=::boot/amd64/debian/11/install.amd/initrd.gz --- quiet
             MENU END
           MENU END
-          MENU BEGIN armh
-          MENU TITLE armh
+          MENU BEGIN armhf
+          MENU TITLE armhf
             MENU BEGIN Ubuntu 20.04
             MENU TITLE Ubuntu 20.04
             MENU END
             MENU BEGIN Debian 11
             MENU TITLE Debian 11
+              LABEL installgui
+                MENU LABEL Graphical install
+                KERNEL ::boot/armhf/debian/10/install.ahf/vmlinuz
+                APPEND vga=788 initrd=::boot/armhf/debian/11/install.ahf/gtk/initrd.gz --- quiet
+              LABEL install
+                MENU LABEL Install
+                KERNEL ::boot/armhf/debian/10/install.ahf/vmlinuz
+                APPEND vga=788 initrd=::boot/armhf/debian/11/install.ahf/initrd.gz --- quiet
             MENU END
           MENU END
         MENU END
