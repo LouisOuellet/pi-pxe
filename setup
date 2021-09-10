@@ -262,23 +262,42 @@ function Install(){
   exec "mkdir -p /mnt/data/netboot/pxelinux.cfg"
   echo "MENU TITLE  PXE Boot Menu
         DEFAULT     vesamenu.c32
-          LABEL local
-            MENU LABEL Boot from local drive
-            LOCALBOOT 0xffff
+        LABEL local
+        MENU LABEL Boot from local drive
+          MENU DEFAULT
+          LOCALBOOT 0
+        MENU BEGIN Boot from network
+        MENU TITLE Boot from network
+          MENU BEGIN x86
+          MENU TITLE x86
+            MENU BEGIN Ubuntu 20.04
+            MENU TITLE Ubuntu 20.04
+            MENU END
+          MENU END
           MENU BEGIN amd64
           MENU TITLE amd64
-            MENU BEGIN Debian
-            MENU TITLE Debian
+            MENU BEGIN Ubuntu 20.04
+            MENU TITLE Ubuntu 20.04
+            MENU END
+            MENU BEGIN Debian 11
+            MENU TITLE Debian 11
               LABEL installgui
-                MENU LABEL ^Graphical install
+                MENU LABEL Graphical install
                 KERNEL ::boot/amd64/debian/10/install.amd/vmlinuz
                 APPEND vga=788 initrd=::boot/amd64/debian/11/install.amd/gtk/initrd.gz --- quiet
               LABEL install
-                MENU LABEL ^Install
+                MENU LABEL Install
                 KERNEL ::boot/amd64/debian/10/install.amd/vmlinuz
                 APPEND vga=788 initrd=::boot/amd64/debian/11/install.amd/initrd.gz --- quiet
             MENU END
           MENU END
+          MENU BEGIN armh
+          MENU TITLE armh
+            MENU BEGIN Ubuntu 20.04
+            MENU TITLE Ubuntu 20.04
+            MENU END
+          MENU END
+        MENU END
   " > /mnt/data/netboot/pxelinux.cfg/default
   cd /mnt/data/netboot
   exec "ln -rs pxelinux.cfg bios && ln -rs pxelinux.cfg efi64 && ln -rs pxelinux.cfg efi32"
